@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -59,7 +58,6 @@ class MapsDisplay extends StatefulWidget {
 }
 
 class _MapsDisplayState extends State<MapsDisplay> {
-  //GoogleMapController? _googleMapController;
   late final MapController mapController;
 
   final LatLng _twinIngitions = LatLng(45.00076796865061, -93.27039033565887);
@@ -72,17 +70,15 @@ class _MapsDisplayState extends State<MapsDisplay> {
     super.initState();
     mapController = MapController();
     initiateRequest();
-    // Timer.periodic(Duration(milliseconds: 1000), (timer) {
-    //   moveDummy();
-    // });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         floatingActionButton: FloatingActionButton(
-          //onPressed: () => mapController.rotate(45),
-          onPressed: () => moveDummy(),
+          onPressed: () => mapToFitBounds(),
+          child: const Icon(Icons.center_focus_strong_sharp),
+          backgroundColor: Colors.blue,
         ),
         body: FlutterMap(
           mapController: mapController,
@@ -104,15 +100,16 @@ class _MapsDisplayState extends State<MapsDisplay> {
               markers: _markers,
             ),
           ],
-        )
-        //  GoogleMap(
-        //     myLocationEnabled: false,
-        //     zoomControlsEnabled: false,
-        //     initialCameraPosition:
-        //         CameraPosition(target: _twinIngitions, zoom: 15),
-        //     markers: Set<Marker>.of(_markers),
-        //     onMapCreated: (controller) => _googleMapController = controller),
-        );
+        ));
+  }
+
+  mapToFitBounds() {
+    var bounds = LatLngBounds.fromPoints(_markers
+        .map((e) => LatLng(e.point.latitude, e.point.longitude))
+        .toList());
+    mapController.fitBounds(bounds,
+        options:
+            const FitBoundsOptions(zoom: 12, padding: EdgeInsets.all(100.0)));
   }
 
   void initiateRequest() async {
@@ -134,82 +131,10 @@ class _MapsDisplayState extends State<MapsDisplay> {
               var latlng = LatLng(lr.latitude, lr.longitude);
               _addMarkers(latlng, color: Colors.black);
             }
-            var bounds = LatLngBounds.fromPoints(lastKnownLocations
-                .locations.values
-                .map((e) => LatLng(e.latitude, e.longitude))
-                .toList());
-            mapController.centerZoomFitBounds(bounds,
-                options:
-                    const FitBoundsOptions(padding: EdgeInsets.all(100.0)));
           });
         }
-        // var lr = LocationReport.fromJson(jsonDecode(tokens[1]));
-        // print(lr);
-        // setState(() {
-        //   _markers = <Marker>[];
-        //   var latlng = LatLng(lr.latitude, lr.longitude);
-        //   _addMarkers(latlng, color: Colors.black);
-        //   mapController.move(latlng, mapController.zoom);
-        // });
       }
     });
-
-    // var channel =
-    //     WebSocketChannel.connect(Uri.parse('ws://b863-50-205-214-22.ngrok.io'));
-
-    // channel.sink.add(
-    //   jsonEncode(
-    //     {"op": "subscribe", "topic": "/gps_pipe"},
-    //   ),
-    // );
-
-//     channel.stream.listen(
-//       (data) {
-//         print("Data: $data");
-//         String msg = jsonDecode(data)["msg"]["data"] as String;
-//         var latDeg = msg.substring(21, 23);
-//         var latDegDouble = double.parse(latDeg);
-//         var latSecond = msg.substring(23, 32);
-//         var latSecondsDouble = double.parse(latSecond);
-//         var lat = (latDegDouble + latSecondsDouble / 60) * (1);
-
-//         var longDeg = msg.substring(35, 38);
-//         var longDegDouble = double.parse(longDeg);
-//         var longSecond = msg.substring(38, 47);
-//         var longSecondsDouble = double.parse(longSecond);
-//         var long = (longDegDouble + longSecondsDouble / 60) * (-1);
-
-//         var skippyLocation = LatLng(lat, long);
-//         print("SkippyLocation: $skippyLocation");
-
-//         _markers.clear();
-//         _addMarkers(skippyLocation);
-//         _addMarkers(_dummyRobotLocation, color: Colors.red);
-
-// //LatLng(45.000718, -93.269865)
-//         print("mapController: ${mapController.center}");
-//         //mapController.move(LatLng(45.000718, -93.269865), 15);
-//       },
-//       onError: (error) => print(error),
-//     );
-  }
-
-  moveDummy() {
-    _dummyRobotLocation = LatLng(
-        _dummyRobotLocation.latitude, _dummyRobotLocation.longitude - 0.00001);
-
-    setState(() {
-      print("markers.size before: ${_markers.length}");
-      //_markers.clear(); // this does not work for some reason
-      print("markers.size after clear : ${_markers.length}");
-      // //_markers.removeAt(0);
-      // print("markers.size after remove : ${_markers.length}");
-      _markers = <Marker>[];
-      // print("markers.size after reassign: ${_markers.length}");
-      _addMarkers(_dummyRobotLocation, color: Colors.red);
-    });
-
-    mapController.move(_dummyRobotLocation, mapController.zoom);
   }
 
   void _addMarkers(LatLng skippyLocation, {Color color = Colors.black}) {
@@ -233,7 +158,6 @@ class _MapsDisplayState extends State<MapsDisplay> {
 
   @override
   void dispose() {
-    //_googleMapController!.dispose();
     super.dispose();
   }
 }
