@@ -1,4 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map/plugin_api.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:tracker_mapper/location_report.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 void main() {
   runApp(const MyApp());
@@ -6,40 +14,20 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Tracker'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -48,68 +36,204 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+      ),
+      body: const Center(
+        child: MapsDisplay(),
+      ),
+    );
+  }
+}
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+class MapsDisplay extends StatefulWidget {
+  const MapsDisplay({
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  _MapsDisplayState createState() => _MapsDisplayState();
+}
+
+class _MapsDisplayState extends State<MapsDisplay> {
+  //GoogleMapController? _googleMapController;
+  late final MapController mapController;
+
+  final LatLng _twinIngitions = LatLng(45.00076796865061, -93.27039033565887);
+
+  List<Marker> _markers = <Marker>[];
+  LatLng _dummyRobotLocation = LatLng(45.000645, -93.26994);
+
+  @override
+  void initState() {
+    super.initState();
+    mapController = MapController();
+    initiateRequest();
+    // Timer.periodic(Duration(milliseconds: 1000), (timer) {
+    //   moveDummy();
+    // });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+        floatingActionButton: FloatingActionButton(
+          //onPressed: () => mapController.rotate(45),
+          onPressed: () => moveDummy(),
+        ),
+        body: FlutterMap(
+          mapController: mapController,
+          options: MapOptions(
+            center: LatLng(45.000718, -93.269865),
+            zoom: 18.0,
+            minZoom: 3.0,
+            maxZoom: 18.0,
+          ),
+          layers: [
+            TileLayerOptions(
+              urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              subdomains: ['a', 'b', 'c'],
+              attributionBuilder: (_) {
+                return Text("© OpenStreetMap contributors");
+              },
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
+            MarkerLayerOptions(
+              markers: _markers,
             ),
           ],
+        )
+        //  GoogleMap(
+        //     myLocationEnabled: false,
+        //     zoomControlsEnabled: false,
+        //     initialCameraPosition:
+        //         CameraPosition(target: _twinIngitions, zoom: 15),
+        //     markers: Set<Marker>.of(_markers),
+        //     onMapCreated: (controller) => _googleMapController = controller),
+        );
+  }
+
+  void initiateRequest() async {
+    var channel2 = WebSocketChannel.connect(
+      Uri.parse('ws://127.0.0.1:8080'),
+    );
+
+    channel2.stream.listen((data) {
+      if (data is String) {
+        var tokens = data.split('#');
+        var messageType = tokens[0];
+        var message = tokens[1];
+        if (messageType == "LASTLOCATIONS") {
+          var lastKnownLocations =
+              AllLocationsReport.fromJson(jsonDecode(message));
+          setState(() {
+            _markers = <Marker>[];
+            for (var lr in lastKnownLocations.locations.values) {
+              var latlng = LatLng(lr.latitude, lr.longitude);
+              _addMarkers(latlng, color: Colors.black);
+            }
+            var bounds = LatLngBounds.fromPoints(lastKnownLocations
+                .locations.values
+                .map((e) => LatLng(e.latitude, e.longitude))
+                .toList());
+            mapController.centerZoomFitBounds(bounds,
+                options:
+                    const FitBoundsOptions(padding: EdgeInsets.all(100.0)));
+          });
+        }
+        // var lr = LocationReport.fromJson(jsonDecode(tokens[1]));
+        // print(lr);
+        // setState(() {
+        //   _markers = <Marker>[];
+        //   var latlng = LatLng(lr.latitude, lr.longitude);
+        //   _addMarkers(latlng, color: Colors.black);
+        //   mapController.move(latlng, mapController.zoom);
+        // });
+      }
+    });
+
+    // var channel =
+    //     WebSocketChannel.connect(Uri.parse('ws://b863-50-205-214-22.ngrok.io'));
+
+    // channel.sink.add(
+    //   jsonEncode(
+    //     {"op": "subscribe", "topic": "/gps_pipe"},
+    //   ),
+    // );
+
+//     channel.stream.listen(
+//       (data) {
+//         print("Data: $data");
+//         String msg = jsonDecode(data)["msg"]["data"] as String;
+//         var latDeg = msg.substring(21, 23);
+//         var latDegDouble = double.parse(latDeg);
+//         var latSecond = msg.substring(23, 32);
+//         var latSecondsDouble = double.parse(latSecond);
+//         var lat = (latDegDouble + latSecondsDouble / 60) * (1);
+
+//         var longDeg = msg.substring(35, 38);
+//         var longDegDouble = double.parse(longDeg);
+//         var longSecond = msg.substring(38, 47);
+//         var longSecondsDouble = double.parse(longSecond);
+//         var long = (longDegDouble + longSecondsDouble / 60) * (-1);
+
+//         var skippyLocation = LatLng(lat, long);
+//         print("SkippyLocation: $skippyLocation");
+
+//         _markers.clear();
+//         _addMarkers(skippyLocation);
+//         _addMarkers(_dummyRobotLocation, color: Colors.red);
+
+// //LatLng(45.000718, -93.269865)
+//         print("mapController: ${mapController.center}");
+//         //mapController.move(LatLng(45.000718, -93.269865), 15);
+//       },
+//       onError: (error) => print(error),
+//     );
+  }
+
+  moveDummy() {
+    _dummyRobotLocation = LatLng(
+        _dummyRobotLocation.latitude, _dummyRobotLocation.longitude - 0.00001);
+
+    setState(() {
+      print("markers.size before: ${_markers.length}");
+      //_markers.clear(); // this does not work for some reason
+      print("markers.size after clear : ${_markers.length}");
+      // //_markers.removeAt(0);
+      // print("markers.size after remove : ${_markers.length}");
+      _markers = <Marker>[];
+      // print("markers.size after reassign: ${_markers.length}");
+      _addMarkers(_dummyRobotLocation, color: Colors.red);
+    });
+
+    mapController.move(_dummyRobotLocation, mapController.zoom);
+  }
+
+  void _addMarkers(LatLng skippyLocation, {Color color = Colors.black}) {
+    _markers.add(Marker(
+      // markerId: const MarkerId('Sol'),
+      // infoWindow: const InfoWindow(title: 'Mission: DTM'),
+      // icon:
+      // BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      width: 50,
+      height: 50,
+      point: skippyLocation,
+      builder: (ctx) => Container(
+        child: Icon(
+          Icons.accessibility_new_rounded,
+          color: color,
+          size: 50,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+    ));
+  }
+
+  @override
+  void dispose() {
+    //_googleMapController!.dispose();
+    super.dispose();
   }
 }
